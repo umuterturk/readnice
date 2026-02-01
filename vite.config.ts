@@ -2,13 +2,45 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 import dts from 'vite-plugin-dts';
+import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+  const pwaPlugin = VitePWA({
+    registerType: 'autoUpdate',
+    includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
+    manifest: {
+      name: 'Readnice',
+      short_name: 'Readnice',
+      description: 'A beautiful, mobile-first book reading experience',
+      theme_color: '#0f172a',
+      background_color: '#0f172a',
+      display: 'standalone',
+      icons: [
+        {
+          src: 'pwa-192x192.png',
+          sizes: '192x192',
+          type: 'image/png',
+        },
+        {
+          src: 'pwa-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+        },
+        {
+          src: 'pwa-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any maskable',
+        },
+      ],
+    },
+  });
+
   // Development mode - run the demo app
   if (mode === 'development') {
     return {
-      plugins: [react()],
+      plugins: [react(), pwaPlugin],
       server: {
         host: true,
         port: 3000,
@@ -52,7 +84,7 @@ export default defineConfig(({ mode }) => {
 
   // Production mode (default) - build the demo app for GitHub Pages
   return {
-    plugins: [react()],
+    plugins: [react(), pwaPlugin],
     base: process.env.BASE_URL || '/',
     build: {
       outDir: 'dist',
