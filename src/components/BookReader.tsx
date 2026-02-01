@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { Bookmark } from '../types';
+import { useWakeLock } from '../hooks/useWakeLock';
 import './BookReader.css';
 
 interface PageBounds {
@@ -89,6 +90,8 @@ export const BookReader: React.FC<BookReaderProps> = ({
   theme = 'light',
   onToggleTheme,
 }) => {
+  // Keep screen awake while reading
+  useWakeLock();
 
   // Bookmark editing state
   const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null);
