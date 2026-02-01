@@ -85,7 +85,7 @@ export default defineConfig(({ mode }) => {
   // Production mode (default) - build the demo app for GitHub Pages
   return {
     plugins: [react(), pwaPlugin],
-    base: process.env.BASE_URL || '/',
+    base: process.env.VITE_BASE_URL || '/',
     build: {
       outDir: 'dist',
     },
