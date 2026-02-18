@@ -6,6 +6,7 @@ import React, {
   useMemo,
 } from 'react';
 import { useSwipeable } from 'react-swipeable';
+import { marked } from 'marked';
 import { Bookmark } from '../types';
 import { useWakeLock } from '../hooks/useWakeLock';
 import './BookReader.css';
@@ -20,6 +21,8 @@ export interface BookReaderProps {
   id: string;
   /** The full text content of the book */
   text: string;
+  /** Content format: 'text' for plain text, 'md' for Markdown */
+  format?: 'text' | 'md';
   /** Book title - displayed on cover page and as running header */
   title?: string;
   /** Author name - displayed on cover page */
@@ -79,6 +82,7 @@ const DEFAULT_REGION: ContentRegion = {
 export const BookReader: React.FC<BookReaderProps> = ({
   id,
   text,
+  format = 'text',
   title,
   author,
   contentRegion,
@@ -97,11 +101,40 @@ export const BookReader: React.FC<BookReaderProps> = ({
   const [editingBookmarkId, setEditingBookmarkId] = useState<string | null>(null);
   const [editingBookmarkLabel, setEditingBookmarkLabel] = useState('');
 
-  // Tokenize text into words
+  const isMarkdown = format === 'md';
+
+  // For plain text: tokenize into words
   const words = useMemo(() => {
-    if (!text) return [];
+    if (!text || isMarkdown) return [];
     return text.match(/\S+\s*/g) || [];
-  }, [text]);
+  }, [text, isMarkdown]);
+
+  // For markdown: parse to HTML, split into block elements, extract page breaks
+  const { mdBlocks, mdPageBreaks } = useMemo(() => {
+    if (!text || !isMarkdown) return { mdBlocks: [] as string[], mdPageBreaks: new Set<number>() };
+    const html = marked.parse(text, { async: false }) as string;
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    const blocks: string[] = [];
+    const pageBreaks = new Set<number>();
+    let pendingBreak = false;
+    for (let i = 0; i < container.children.length; i++) {
+      if (container.children[i].tagName === 'HR') {
+        // --- acts as a page break: next block starts a new page
+        pendingBreak = true;
+      } else {
+        if (pendingBreak) {
+          pageBreaks.add(blocks.length);
+          pendingBreak = false;
+        }
+        blocks.push(container.children[i].outerHTML);
+      }
+    }
+    return { mdBlocks: blocks, mdPageBreaks: pageBreaks };
+  }, [text, isMarkdown]);
+
+  // Unified token count for both modes
+  const tokenCount = isMarkdown ? mdBlocks.length : words.length;
 
   // State
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -179,7 +212,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
   // Pre-compute ALL pages using the actual content element
   const computeAllPages = useCallback((): PageBounds[] => {
     const content = contentRef.current;
-    if (!content || words.length === 0) return [];
+    if (!content || tokenCount === 0) return [];
 
     // Content element has fixed height from flexbox - use it directly
     const availableHeight = content.clientHeight;
@@ -189,49 +222,94 @@ export const BookReader: React.FC<BookReaderProps> = ({
     const allPages: PageBounds[] = [];
     let startIndex = 0;
 
-    // Helper: check if content fits
-    const fits = (start: number, end: number): boolean => {
-      if (start >= end) return true;
-      content.textContent = words.slice(start, end).join('');
-      return content.scrollHeight <= availableHeight;
-    };
+    if (isMarkdown) {
+      // Block-based pagination for Markdown
+      const fits = (start: number, end: number): boolean => {
+        if (start >= end) return true;
+        content.innerHTML = mdBlocks.slice(start, end).join('');
+        return content.scrollHeight <= availableHeight;
+      };
 
-    // Compute each page using binary search
-    while (startIndex < words.length) {
-      let low = startIndex + 1;
-      let high = words.length;
-      let bestEnd = startIndex + 1;
-
-      // Quick check: can all remaining words fit?
-      if (fits(startIndex, words.length)) {
-        allPages.push({ start: startIndex, end: words.length });
-        break;
-      }
-
-      // Binary search for max words that fit
-      while (low <= high) {
-        const mid = Math.floor((low + high) / 2);
-        if (fits(startIndex, mid)) {
-          bestEnd = mid;
-          low = mid + 1;
-        } else {
-          high = mid - 1;
+      while (startIndex < mdBlocks.length) {
+        // Find next page break to limit this page's range
+        let sectionEnd = mdBlocks.length;
+        for (let i = startIndex + 1; i < mdBlocks.length; i++) {
+          if (mdPageBreaks.has(i)) {
+            sectionEnd = i;
+            break;
+          }
         }
+
+        let low = startIndex + 1;
+        let high = sectionEnd;
+        let bestEnd = startIndex + 1;
+
+        if (fits(startIndex, sectionEnd)) {
+          allPages.push({ start: startIndex, end: sectionEnd });
+          startIndex = sectionEnd;
+          continue;
+        }
+
+        while (low <= high) {
+          const mid = Math.floor((low + high) / 2);
+          if (fits(startIndex, mid)) {
+            bestEnd = mid;
+            low = mid + 1;
+          } else {
+            high = mid - 1;
+          }
+        }
+
+        if (bestEnd <= startIndex) {
+          bestEnd = startIndex + 1;
+        }
+
+        allPages.push({ start: startIndex, end: bestEnd });
+        startIndex = bestEnd;
       }
 
-      if (bestEnd <= startIndex) {
-        bestEnd = startIndex + 1;
+      content.innerHTML = '';
+    } else {
+      // Word-based pagination for plain text
+      const fits = (start: number, end: number): boolean => {
+        if (start >= end) return true;
+        content.textContent = words.slice(start, end).join('');
+        return content.scrollHeight <= availableHeight;
+      };
+
+      while (startIndex < words.length) {
+        let low = startIndex + 1;
+        let high = words.length;
+        let bestEnd = startIndex + 1;
+
+        if (fits(startIndex, words.length)) {
+          allPages.push({ start: startIndex, end: words.length });
+          break;
+        }
+
+        while (low <= high) {
+          const mid = Math.floor((low + high) / 2);
+          if (fits(startIndex, mid)) {
+            bestEnd = mid;
+            low = mid + 1;
+          } else {
+            high = mid - 1;
+          }
+        }
+
+        if (bestEnd <= startIndex) {
+          bestEnd = startIndex + 1;
+        }
+
+        allPages.push({ start: startIndex, end: bestEnd });
+        startIndex = bestEnd;
       }
 
-      allPages.push({ start: startIndex, end: bestEnd });
-      startIndex = bestEnd;
+      content.textContent = '';
     }
 
-    // Clear content after measurement
-    content.textContent = '';
-
     return allPages;
-  }, [words]);
+  }, [words, mdBlocks, mdPageBreaks, isMarkdown, tokenCount]);
 
   // Get bounds for a page (1-indexed, page 1 is cover if hasCover)
   const getPageBounds = useCallback((pageNum: number): PageBounds => {
@@ -542,7 +620,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
   // Initial pagination
   useEffect(() => {
     if (!isResourcesReady || !containerRef.current || !contentRef.current) return;
-    if (words.length === 0) {
+    if (tokenCount === 0) {
       setPages([]);
       setCurrentPage(1);
       setIsReady(true);
@@ -607,7 +685,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
       cancelAnimationFrame(rafId);
       clearTimeout(timerId);
     };
-  }, [isResourcesReady, words.length, fullStorageKey, computeAllPages, hasCover]);
+  }, [isResourcesReady, tokenCount, fullStorageKey, computeAllPages, hasCover]);
 
   // Keep pages ref in sync for use in resize handler
   useEffect(() => {
@@ -686,12 +764,15 @@ export const BookReader: React.FC<BookReaderProps> = ({
     };
   }, [isReady, isResourcesReady, currentBounds.start, computeAllPages, hasCover]);
 
-  // Get page text
+  // Get page content (plain text string or HTML string for markdown)
   const pageText = useMemo(() => {
     if (!isReady || isPaginating) return '';
     if (hasCover && currentPage === 1) return '';
+    if (isMarkdown) {
+      return mdBlocks.slice(currentBounds.start, currentBounds.end).join('');
+    }
     return words.slice(currentBounds.start, currentBounds.end).join('');
-  }, [words, currentBounds, isReady, isPaginating, hasCover, currentPage]);
+  }, [words, mdBlocks, isMarkdown, currentBounds, isReady, isPaginating, hasCover, currentPage]);
 
   const canGoNext = currentPage < totalPages;
   const canGoPrev = currentPage > 1;
@@ -751,16 +832,17 @@ export const BookReader: React.FC<BookReaderProps> = ({
     // Cover page has no text content
     if (followerIsCover) return '';
 
+    const tokens = isMarkdown ? mdBlocks : words;
     if (effectiveOffset > 0 && canGoPrev) {
       const bounds = getPageBounds(currentPage - 1);
-      return words.slice(bounds.start, bounds.end).join('');
+      return tokens.slice(bounds.start, bounds.end).join('');
     }
     if (effectiveOffset < 0 && canGoNext) {
       const bounds = getPageBounds(currentPage + 1);
-      return words.slice(bounds.start, bounds.end).join('');
+      return tokens.slice(bounds.start, bounds.end).join('');
     }
     return '';
-  }, [isReady, isPaginating, dragOffset, slideDirection, canGoPrev, canGoNext, currentPage, getPageBounds, words, followerIsCover]);
+  }, [isReady, isPaginating, dragOffset, slideDirection, canGoPrev, canGoNext, currentPage, getPageBounds, words, mdBlocks, isMarkdown, followerIsCover]);
 
   // Determine if follower should be shown (has content OR is cover page)
   const showFollower = useMemo(() => {
@@ -790,7 +872,9 @@ export const BookReader: React.FC<BookReaderProps> = ({
                 {author && <p className="book-reader__cover-author">by {author}</p>}
               </div>
             ) : (
-              <div className="book-reader__content book-reader__content--preview">{followerText}</div>
+              isMarkdown
+                ? <div className="book-reader__content book-reader__content--preview book-reader__content--markdown" dangerouslySetInnerHTML={{ __html: followerText }} />
+                : <div className="book-reader__content book-reader__content--preview">{followerText}</div>
             )}
             <span className="book-reader__page-number">{followerPageNum} / {totalPages}</span>
           </div>
@@ -809,15 +893,26 @@ export const BookReader: React.FC<BookReaderProps> = ({
 
 
           {/* Content element - ALWAYS rendered for measurement, fills flex space */}
-          <div
-            ref={contentRef}
-            className="book-reader__content"
-            style={{
-              visibility: (isPaginating || isCoverPage || !isReady) ? 'hidden' : 'visible',
-            }}
-          >
-            {pageText}
-          </div>
+          {isMarkdown ? (
+            <div
+              ref={contentRef}
+              className="book-reader__content book-reader__content--markdown"
+              style={{
+                visibility: (isPaginating || isCoverPage || !isReady) ? 'hidden' : 'visible',
+              }}
+              dangerouslySetInnerHTML={{ __html: pageText }}
+            />
+          ) : (
+            <div
+              ref={contentRef}
+              className="book-reader__content"
+              style={{
+                visibility: (isPaginating || isCoverPage || !isReady) ? 'hidden' : 'visible',
+              }}
+            >
+              {pageText}
+            </div>
+          )}
 
 
 
@@ -882,8 +977,8 @@ export const BookReader: React.FC<BookReaderProps> = ({
             if (currentBookmark) {
               onRemoveBookmark?.(currentBookmark.id);
             } else {
-              const percentage = words.length > 0
-                ? ((currentBounds.start / words.length) * 100).toFixed(2)
+              const percentage = tokenCount > 0
+                ? ((currentBounds.start / tokenCount) * 100).toFixed(2)
                 : '0.00';
               onAddBookmark?.(currentBounds.start, `${percentage}%`);
             }

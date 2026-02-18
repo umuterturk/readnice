@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { BookReader } from './components/BookReader';
 import { ConfirmModal } from './components/ConfirmModal';
 import { useBooks } from './hooks/useBooks';
@@ -24,12 +24,33 @@ function App() {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const activeBook = books.find(b => b.id === activeBookId);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = ev.target?.result as string;
+      const isMd = file.name.endsWith('.md');
+      setFormData((prev) => ({
+        ...prev,
+        text: content,
+        format: isMd ? 'md' : 'text',
+        title: prev.title || file.name.replace(/\.(md|txt)$/, ''),
+      }));
+    };
+    reader.readAsText(file);
+    // Reset so same file can be re-selected
+    e.target.value = '';
+  };
 
   // Form state
   const [formData, setFormData] = useState({
     title: '',
     author: '',
     text: '',
+    format: 'text' as 'text' | 'md',
   });
 
   const handleSaveBook = (e: React.FormEvent) => {
@@ -50,7 +71,7 @@ function App() {
       addBook(formData);
     }
 
-    setFormData({ title: '', author: '', text: '' });
+    setFormData({ title: '', author: '', text: '', format: 'text' });
     setEditingBookId(null);
     setIsSaveModalOpen(false);
     setCurrentView('library');
@@ -64,7 +85,7 @@ function App() {
     if (editingBookId) {
       removeBook(editingBookId);
       setEditingBookId(null);
-      setFormData({ title: '', author: '', text: '' });
+      setFormData({ title: '', author: '', text: '', format: 'text' });
       setCurrentView('library');
       setIsDeleteModalOpen(false);
     }
@@ -82,7 +103,7 @@ function App() {
 
   const navToEditor = () => {
     setEditingBookId(null);
-    setFormData({ title: '', author: '', text: '' });
+    setFormData({ title: '', author: '', text: '', format: 'text' });
     setCurrentView('editor');
   };
 
@@ -93,6 +114,7 @@ function App() {
       title: book.title,
       author: book.author || '',
       text: book.text,
+      format: book.format || 'text',
     });
     setCurrentView('edit');
   };
@@ -100,7 +122,7 @@ function App() {
   const navToLibrary = () => {
     setCurrentView('library');
     setEditingBookId(null);
-    setFormData({ title: '', author: '', text: '' });
+    setFormData({ title: '', author: '', text: '', format: 'text' });
   };
 
   return (
@@ -346,6 +368,38 @@ function App() {
                 </div>
                 <div className="form-group">
                   <label>Content</label>
+                  <div className="content-input-actions">
+                    <div className="format-toggle">
+                      <button
+                        type="button"
+                        className={`format-toggle__btn ${formData.format === 'text' ? 'is-active' : ''}`}
+                        onClick={() => setFormData({ ...formData, format: 'text' })}
+                      >
+                        Plain Text
+                      </button>
+                      <button
+                        type="button"
+                        className={`format-toggle__btn ${formData.format === 'md' ? 'is-active' : ''}`}
+                        onClick={() => setFormData({ ...formData, format: 'md' })}
+                      >
+                        Markdown
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Import File
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".md,.txt"
+                      onChange={handleFileImport}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
                   <textarea
                     placeholder="Paste your story here..."
                     required
@@ -406,6 +460,7 @@ function App() {
           <BookReader
             id={activeBook.id}
             text={activeBook.text}
+            format={activeBook.format}
             title={activeBook.title}
             author={activeBook.author}
             bookmarks={activeBook.bookmarks || []}

@@ -59,6 +59,7 @@ export function useBooks() {
                         title: data.title,
                         author: data.author,
                         text: data.text,
+                        format: data.format,
                         createdAt: data.createdAt,
                         bookmarks: data.bookmarks || [],
                     });

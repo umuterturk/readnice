@@ -10,6 +10,7 @@ export interface Book {
     title: string;
     author: string;
     text: string;
+    format?: 'text' | 'md';
     createdAt: number;
     bookmarks?: Bookmark[];
 }

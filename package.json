@@ -59,6 +59,7 @@
   },
   "dependencies": {
     "firebase": "^9.23.0",
+    "marked": "^17.0.3",
     "react-swipeable": "^7.0.1"
   },
   "devDependencies": {

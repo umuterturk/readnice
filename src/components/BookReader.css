@@ -89,6 +89,98 @@
   overflow: hidden;
 }
 
+/* Markdown rendered content */
+.book-reader__content--markdown {
+  white-space: normal;
+}
+
+.book-reader__content--markdown h1,
+.book-reader__content--markdown h2,
+.book-reader__content--markdown h3,
+.book-reader__content--markdown h4,
+.book-reader__content--markdown h5,
+.book-reader__content--markdown h6 {
+  margin: 0 0 0.5em 0;
+  line-height: 1.3;
+}
+
+.book-reader__content--markdown h1 { font-size: 1.6em; }
+.book-reader__content--markdown h2 { font-size: 1.35em; }
+.book-reader__content--markdown h3 { font-size: 1.15em; }
+
+.book-reader__content--markdown p {
+  margin: 0 0 0.8em 0;
+}
+
+.book-reader__content--markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.book-reader__content--markdown ul,
+.book-reader__content--markdown ol {
+  margin: 0 0 0.8em 0;
+  padding-left: 1.5em;
+}
+
+.book-reader__content--markdown li {
+  margin-bottom: 0.3em;
+}
+
+.book-reader__content--markdown blockquote {
+  margin: 0 0 0.8em 0;
+  padding: 0.4em 0 0.4em 1em;
+  border-left: 3px solid var(--footer-text);
+  opacity: 0.85;
+  font-style: italic;
+}
+
+.book-reader__content--markdown pre {
+  margin: 0 0 0.8em 0;
+  padding: 0.8em;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.book-reader__content--markdown code {
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  padding: 0.15em 0.3em;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 3px;
+}
+
+.book-reader__content--markdown pre code {
+  padding: 0;
+  background: none;
+}
+
+.book-reader__content--markdown hr {
+  border: none;
+  border-top: 1px solid var(--footer-text);
+  margin: 1em 0;
+  opacity: 0.3;
+}
+
+.book-reader__content--markdown strong {
+  font-weight: 600;
+}
+
+.book-reader__content--markdown a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--footer-text);
+}
+
+.book-reader__content--markdown img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
 /* Loading state */
 .book-reader__loading {
   flex: 1 1 0;
